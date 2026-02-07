@@ -51,6 +51,9 @@ func (s *service) Init(a *app.App) (err error) {
 	s.groupColumns[model.RelationFormat_checkbox] = func(key string) Grouper {
 		return &GroupCheckBox{}
 	}
+	s.groupColumns[model.RelationFormat_object] = func(key string) Grouper {
+		return &GroupObject{Key: domain.RelationKey(key), store: s.objectStore}
+	}
 
 	return nil
 }
