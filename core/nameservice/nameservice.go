@@ -20,7 +20,8 @@ const CName = "nameservice"
 var log = logging.Logger(CName).Desugar()
 
 var (
-	ErrBadResolve = errors.New("can not resolve anyname")
+	ErrBadResolve    = errors.New("can not resolve anyname")
+	ErrLocalOnlyMode = errors.New("name service is not available in local-only mode")
 )
 
 func NsNameToFullName(nsName string, nsNameType model.NameserviceNameType) string {
@@ -49,9 +50,14 @@ func New() Service {
 	return &service{}
 }
 
+type networkModeGetter interface {
+	IsLocalOnlyMode() bool
+}
+
 type service struct {
-	nsclient nameserviceclient.AnyNsClientService
-	wallet   wallet.Wallet
+	nsclient    nameserviceclient.AnyNsClientService
+	wallet      wallet.Wallet
+	isLocalOnly bool
 }
 
 func (s *service) Name() (name string) {
@@ -63,10 +69,14 @@ func (s *service) Init(a *app.App) (err error) {
 	// in order for that to work, we need to have a "namingNode" node in the nodes section of the config
 	s.nsclient = app.MustComponent[nameserviceclient.AnyNsClientService](a)
 	s.wallet = app.MustComponent[wallet.Wallet](a)
+	s.isLocalOnly = app.MustComponent[networkModeGetter](a).IsLocalOnlyMode()
 	return nil
 }
 
 func (s *service) NameServiceResolveName(ctx context.Context, req *pb.RpcNameServiceResolveNameRequest) (*pb.RpcNameServiceResolveNameResponse, error) {
+	if s.isLocalOnly {
+		return nil, ErrLocalOnlyMode
+	}
 	var in proto.NameAvailableRequest
 	in.FullName = NsNameToFullName(req.NsName, req.NsNameType)
 
@@ -104,6 +114,9 @@ func FullNameToNsName(fullName string) (nsName string, nsNameType model.Nameserv
 }
 
 func (s *service) NameServiceResolveAnyId(ctx context.Context, req *pb.RpcNameServiceResolveAnyIdRequest) (*pb.RpcNameServiceResolveAnyIdResponse, error) {
+	if s.isLocalOnly {
+		return nil, ErrLocalOnlyMode
+	}
 	var in proto.NameByAnyIdRequest
 	in.AnyAddress = req.AnyId
 
@@ -121,6 +134,9 @@ func (s *service) NameServiceResolveAnyId(ctx context.Context, req *pb.RpcNameSe
 }
 
 func (s *service) NameServiceUserAccountGet(ctx context.Context, req *pb.RpcNameServiceUserAccountGetRequest) (*pb.RpcNameServiceUserAccountGetResponse, error) {
+	if s.isLocalOnly {
+		return nil, ErrLocalOnlyMode
+	}
 	// when AccountAbstraction is used to deploy a smart contract wallet
 	// then name is really owned by this SCW, but owner of this SCW is
 	// EOA that was used to sign transaction

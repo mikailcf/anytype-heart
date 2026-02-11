@@ -37,6 +37,10 @@ type SpaceService interface {
 	TechSpace() *clientspace.TechSpace
 }
 
+type networkModeGetter interface {
+	IsLocalOnlyMode() bool
+}
+
 type inboxclient struct {
 	inboxClient  anysyncinboxclient.InboxClient
 	spaceService SpaceService
@@ -49,18 +53,22 @@ type inboxclient struct {
 	receivers map[coordinatorproto.InboxPayloadType]func(*coordinatorproto.InboxPacket) error
 
 	periodicCheck periodicsync.PeriodicSync
+	isLocalOnly   bool
 }
 
 func (s *inboxclient) Init(a *app.App) (err error) {
+	s.isLocalOnly = app.MustComponent[networkModeGetter](a).IsLocalOnlyMode()
 	s.periodicCheck = periodicsync.NewPeriodicSync(30, 0, s.checkMessages, log)
 	s.spaceService = app.MustComponent[SpaceService](a)
 	s.wallet = app.MustComponent[wallet.Wallet](a)
 
 	s.receivers = make(map[coordinatorproto.InboxPayloadType]func(*coordinatorproto.InboxPacket) error)
 	s.inboxClient = app.MustComponent[anysyncinboxclient.InboxClient](a)
-	err = s.inboxClient.SetMessageReceiver(s.ReceiveNotify)
-	if err != nil {
-		return
+	if !s.isLocalOnly {
+		err = s.inboxClient.SetMessageReceiver(s.ReceiveNotify)
+		if err != nil {
+			return
+		}
 	}
 
 	return
@@ -84,6 +92,9 @@ func (s *inboxclient) Name() (name string) {
 }
 
 func (s *inboxclient) Run(ctx context.Context) error {
+	if s.isLocalOnly {
+		return nil
+	}
 	s.techSpace = s.spaceService.TechSpace()
 	if s.techSpace == nil {
 		return fmt.Errorf("inboxclient: techspace is nil")
@@ -221,6 +232,9 @@ func (s *inboxclient) ReceiveNotify(event *coordinatorproto.NotifySubscribeEvent
 }
 
 func (s *inboxclient) InboxAddMessage(ctx context.Context, receiverPubKey crypto.PubKey, message *coordinatorproto.InboxMessage) (err error) {
+	if s.isLocalOnly {
+		return fmt.Errorf("inbox is not available in local-only mode")
+	}
 	return s.inboxClient.InboxAddMessage(ctx, receiverPubKey, message)
 }
 func (s *inboxclient) Close(_ context.Context) (err error) {

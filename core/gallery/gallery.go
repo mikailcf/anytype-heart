@@ -47,6 +47,7 @@ var (
 	ErrUnmarshalJson = fmt.Errorf("failed to unmarshall json")
 	ErrDownloadIndex = fmt.Errorf("failed to download gallery index")
 	ErrNotModified   = fmt.Errorf("resource is not modified")
+	ErrLocalOnlyMode = fmt.Errorf("gallery is not available in local-only mode")
 )
 
 type Service interface {
@@ -59,8 +60,13 @@ func New() Service {
 	return &service{}
 }
 
+type networkModeGetter interface {
+	IsLocalOnlyMode() bool
+}
+
 type service struct {
 	indexPath, versionPath string
+	isLocalOnly            bool
 }
 
 func (s *service) Name() string {
@@ -68,6 +74,7 @@ func (s *service) Name() string {
 }
 
 func (s *service) Init(a *app.App) error {
+	s.isLocalOnly = app.MustComponent[networkModeGetter](a).IsLocalOnlyMode()
 	path := filepath.Join(app.MustComponent[wallet.Wallet](a).RootPath(), cacheGalleryDir)
 	if err := os.MkdirAll(path, 0777); err != nil && !os.IsExist(err) {
 		return fmt.Errorf("failed to init gallery index directory: %w", err)
@@ -93,6 +100,9 @@ var whitelist = map[string]*regexp.Regexp{
 }
 
 func (s *service) GetManifest(url string) (info *model.ManifestInfo, err error) {
+	if s.isLocalOnly {
+		return nil, ErrLocalOnlyMode
+	}
 	return s.getManifest(url, true, true)
 }
 
@@ -131,6 +141,9 @@ func (s *service) getManifest(url string, checkWhitelist, validateSchema bool) (
 }
 
 func (s *service) GetGalleryIndex() (index *pb.RpcGalleryDownloadIndexResponse, err error) {
+	if s.isLocalOnly {
+		return nil, ErrLocalOnlyMode
+	}
 	return s.getGalleryIndex(indexUrl, defaultTimeout)
 }
 

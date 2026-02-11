@@ -7,8 +7,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cheggaaa/mb/v3"
-
 	"github.com/anyproto/anytype-heart/metrics/anymetry"
 	"github.com/anyproto/anytype-heart/pkg/lib/logging"
 )
@@ -70,19 +68,7 @@ type service struct {
 }
 
 func (s *service) SendSampled(ev SamplableEvent) {
-	s.lock.RLock()
-	if !s.isEnabled {
-		s.lock.RUnlock()
-		return
-	}
-	if ev == nil {
-		s.lock.RUnlock()
-		return
-	}
-	backend := s.getBackend(ev.GetBackend())
-	s.lock.RUnlock()
-
-	backend.sendSampled(ev)
+	// Disabled for offline-only mode: no telemetry should be sent
 }
 
 func (s *service) SetEnabled(isEnabled bool) {
@@ -189,50 +175,15 @@ func (s *service) GetStartVersion() string {
 }
 
 func (s *service) Run() {
-	s.lock.Lock()
-	defer s.lock.Unlock()
-	if !s.isEnabled {
-		return
-	}
-	if s.alreadyRunning {
-		return
-	}
-	s.alreadyRunning = true
-
-	for _, c := range s.clients {
-		c.ctx, c.cancel = context.WithCancel(context.Background())
-		c.setBatcher(mb.New[anymetry.Event](eventsLimit))
-		go c.startAggregating()
-		go c.startSendingBatchMessages(s)
-	}
+	// Disabled for offline-only mode: no telemetry should be sent
 }
 
 func (s *service) Close() {
-	s.lock.Lock()
-	defer s.lock.Unlock()
-	if !s.isEnabled {
-		return
-	}
-	for _, c := range s.clients {
-		c.Close()
-	}
-	s.alreadyRunning = false
+	// Disabled for offline-only mode: no telemetry should be sent
 }
 
 func (s *service) Send(ev anymetry.Event) {
-	s.lock.RLock()
-	if !s.isEnabled {
-		s.lock.RUnlock()
-		return
-	}
-	if ev == nil {
-		s.lock.RUnlock()
-		return
-	}
-	backend := s.getBackend(ev.GetBackend())
-	s.lock.RUnlock()
-
-	backend.send(ev)
+	// Disabled for offline-only mode: no telemetry should be sent
 }
 
 func (s *service) getBackend(backend anymetry.MetricsBackend) *client {

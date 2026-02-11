@@ -79,6 +79,8 @@ type Service interface {
 	GetStatus(ctx context.Context, spaceId string, objectId string) (*pb.RpcPublishingPublishState, error)
 }
 
+var ErrLocalOnlyMode = errors.New("publishing is not available in local-only mode")
+
 type service struct {
 	spaceService         space.Service
 	exportService        export.Export
@@ -88,6 +90,7 @@ type service struct {
 	objectStore          objectstore.ObjectStore
 	tempDirService       core.TempDirProvider
 	limitsConfig         config.PublishLimitsConfig
+	isLocalOnly          bool
 }
 
 func New() Service {
@@ -102,7 +105,9 @@ func (s *service) Init(a *app.App) error {
 	s.inviteService = app.MustComponent[inviteservice.InviteService](a)
 	s.objectStore = app.MustComponent[objectstore.ObjectStore](a)
 	s.tempDirService = app.MustComponent[core.TempDirProvider](a)
-	s.limitsConfig = app.MustComponent[*config.Config](a).GetPublishLimits()
+	cfg := app.MustComponent[*config.Config](a)
+	s.limitsConfig = cfg.GetPublishLimits()
+	s.isLocalOnly = cfg.IsLocalOnlyMode()
 	return nil
 }
 
@@ -401,6 +406,9 @@ func (s *service) getPublishLimit(globalName string) (int64, error) {
 }
 
 func (s *service) Publish(ctx context.Context, spaceId, pageId, uri string, joinSpace bool) (res PublishResult, err error) {
+	if s.isLocalOnly {
+		return PublishResult{}, ErrLocalOnlyMode
+	}
 	identity, _, details := s.identityService.GetMyProfileDetails(ctx)
 	globalName := details.GetString(bundle.RelationKeyGlobalName)
 
@@ -427,6 +435,9 @@ func (s *service) makeUrl(uri, identity, globalName string) string {
 }
 
 func (s *service) Unpublish(ctx context.Context, spaceId, pageObjId string) error {
+	if s.isLocalOnly {
+		return ErrLocalOnlyMode
+	}
 	return s.publishClientService.UnPublish(ctx, &publishapi.UnPublishRequest{
 		SpaceId:  spaceId,
 		ObjectId: pageObjId,
@@ -434,6 +445,9 @@ func (s *service) Unpublish(ctx context.Context, spaceId, pageObjId string) erro
 }
 
 func (s *service) PublishList(ctx context.Context, spaceId string) ([]*pb.RpcPublishingPublishState, error) {
+	if s.isLocalOnly {
+		return nil, ErrLocalOnlyMode
+	}
 	publishes, err := s.publishClientService.ListPublishes(ctx, spaceId)
 	if err != nil {
 		return nil, err
@@ -481,6 +495,9 @@ func (s *service) retrieveVersion(publish *publishapi.Publish) *Version {
 }
 
 func (s *service) ResolveUri(ctx context.Context, uri string) (*pb.RpcPublishingPublishState, error) {
+	if s.isLocalOnly {
+		return nil, ErrLocalOnlyMode
+	}
 	publish, err := s.publishClientService.ResolveUri(ctx, uri)
 	if err != nil {
 		return nil, err
@@ -499,6 +516,9 @@ func (s *service) ResolveUri(ctx context.Context, uri string) (*pb.RpcPublishing
 }
 
 func (s *service) GetStatus(ctx context.Context, spaceId string, objectId string) (*pb.RpcPublishingPublishState, error) {
+	if s.isLocalOnly {
+		return nil, ErrLocalOnlyMode
+	}
 	status, err := s.publishClientService.GetPublishStatus(ctx, spaceId, objectId)
 	if err != nil {
 		return nil, err
