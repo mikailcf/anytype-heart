@@ -60,10 +60,9 @@ func (s *Service) AccountCreate(ctx context.Context, req *pb.RpcAccountCreateReq
 	if req.EnableMembershipV2 {
 		cfg.EnableMembershipV2 = true
 	}
-	if req.NetworkMode > 0 {
-		cfg.NetworkMode = req.NetworkMode
-		cfg.NetworkCustomConfigFilePath = req.NetworkCustomConfigFilePath
-	}
+	// Force LocalOnly mode — this is an offline-only build
+	cfg.NetworkMode = pb.RpcAccount_LocalOnly
+	cfg.NetworkCustomConfigFilePath = ""
 	if req.JsonApiListenAddr != "" {
 		cfg.JsonApiListenAddr = req.JsonApiListenAddr
 	}

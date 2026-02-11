@@ -140,10 +140,9 @@ func (s *Service) start(
 	if enableMembershipV2 {
 		cfg.EnableMembershipV2 = true
 	}
-	if networkMode > 0 {
-		cfg.NetworkMode = networkMode
-		cfg.NetworkCustomConfigFilePath = networkConfigFilePath
-	}
+	// Force LocalOnly mode — this is an offline-only build
+	cfg.NetworkMode = pb.RpcAccount_LocalOnly
+	cfg.NetworkCustomConfigFilePath = ""
 	comps := []app.Component{
 		cfg,
 		anytype.BootstrapWallet(s.rootPath, *s.derivedKeys, s.fulltextPrimaryLanguage),

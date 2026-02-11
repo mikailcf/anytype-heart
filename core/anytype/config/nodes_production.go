@@ -2,7 +2,6 @@
 
 package config
 
-import _ "embed"
-
-//go:embed nodes/production.yml
+// Offline-only build: no production nodes configured.
+// The embedded config is empty to prevent any network connections.
 var nodesConfYmlBytes []byte

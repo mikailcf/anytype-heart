@@ -45,6 +45,10 @@ type techSpaceGetter interface {
 	TechSpace() *clientspace.TechSpace
 }
 
+type networkModeGetter interface {
+	IsLocalOnlyMode() bool
+}
+
 type configFetcher struct {
 	eventSender  event.Sender
 	periodicSync periodicsync.PeriodicSync
@@ -54,6 +58,7 @@ type configFetcher struct {
 	wallet       wallet.Wallet
 	lastStatus   model.AccountStatusType
 	mutex        sync.Mutex
+	isLocalOnly  bool
 }
 
 func New() ConfigFetcher {
@@ -61,11 +66,15 @@ func New() ConfigFetcher {
 }
 
 func (c *configFetcher) Run(context.Context) error {
+	if c.isLocalOnly {
+		return nil
+	}
 	c.periodicSync.Run()
 	return nil
 }
 
 func (c *configFetcher) Init(a *app.App) (err error) {
+	c.isLocalOnly = app.MustComponent[networkModeGetter](a).IsLocalOnlyMode()
 	c.wallet = a.MustComponent(wallet.CName).(wallet.Wallet)
 	c.eventSender = a.MustComponent(event.CName).(event.Sender)
 	c.periodicSync = periodicsync.NewPeriodicSync(refreshIntervalSecs, timeout, c.updateStatus, logger.CtxLogger{Logger: log.Desugar()})
@@ -109,6 +118,9 @@ func (c *configFetcher) updateStatus(ctx context.Context) (err error) {
 }
 
 func (c *configFetcher) Refetch() {
+	if c.isLocalOnly {
+		return
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	err := c.updateStatus(ctx)

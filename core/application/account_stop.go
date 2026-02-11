@@ -9,9 +9,7 @@ import (
 	"time"
 
 	"github.com/anyproto/any-sync/app"
-	"github.com/anyproto/any-sync/nodeconf"
 	"github.com/anyproto/any-sync/util/debug"
-	"gopkg.in/yaml.v3"
 
 	"github.com/anyproto/anytype-heart/core/anytype/config"
 	"github.com/anyproto/anytype-heart/core/pushnotification"
@@ -91,33 +89,14 @@ func (s *Service) AccountChangeNetworkConfigAndRestart(ctx context.Context, req 
 	accountId := s.app.MustComponent(walletComp.CName).(walletComp.Wallet).GetAccountPrivkey().GetPublic().Account()
 	conf := s.app.MustComponent(config.CName).(*config.Config)
 
-	if req.NetworkMode == pb.RpcAccount_CustomConfig {
-		// check if file exists at path
-		b, err := os.ReadFile(req.NetworkCustomConfigFilePath)
-		if os.IsNotExist(err) {
-			return config.ErrNetworkFileNotFound
-		}
-		if err != nil {
-			return errors.Join(config.ErrNetworkFileFailedToRead, err)
-		}
-		var cfg nodeconf.Configuration
-		err = yaml.Unmarshal(b, &cfg)
-		if err != nil {
-			// wrap errors into each other
-			return errors.Join(config.ErrNetworkFileFailedToRead, err)
-		}
-		if conf.NetworkId != "" && conf.NetworkId != cfg.NetworkId {
-			return config.ErrNetworkIdMismatch
-		}
-	}
-
+	// Force LocalOnly mode — this is an offline-only build
 	err := s.stop()
 	if err != nil {
 		return ErrFailedToStopApplication
 	}
 
 	_, err = s.start(ctx, accountId, rootPath, conf.DontStartLocalNetworkSyncAutomatically, conf.JsonApiListenAddr,
-		conf.PeferYamuxTransport, req.NetworkMode, req.NetworkCustomConfigFilePath, lang, "", conf.EnableMembershipV2)
+		conf.PeferYamuxTransport, pb.RpcAccount_LocalOnly, "", lang, "", conf.EnableMembershipV2)
 	return err
 }
 

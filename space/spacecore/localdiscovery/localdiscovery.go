@@ -45,6 +45,7 @@ type localDiscovery struct {
 	ipv4        []string
 	ipv6        []string
 	manualStart bool
+	disabled    bool
 	started     bool
 	notifier    Notifier
 	m           sync.Mutex
@@ -64,8 +65,13 @@ func (l *localDiscovery) SetNotifier(notifier Notifier) {
 }
 
 func (l *localDiscovery) Init(a *app.App) (err error) {
-	l.manualStart = a.MustComponent(config.CName).(*config.Config).DontStartLocalNetworkSyncAutomatically
-	l.nodeConf = a.MustComponent(config.CName).(*config.Config).GetNodeConf()
+	cfg := a.MustComponent(config.CName).(*config.Config)
+	l.manualStart = cfg.DontStartLocalNetworkSyncAutomatically
+	l.nodeConf = cfg.GetNodeConf()
+	// Disable local discovery entirely in LocalOnly mode
+	if cfg.IsLocalOnlyMode() {
+		l.disabled = true
+	}
 	l.peerId = a.MustComponent(accountservice.CName).(accountservice.Service).Account().PeerId
 	l.periodicCheck = periodicsync.NewPeriodicSync(5, 0, l.refreshInterfaces, log)
 	l.drpcServer = app.MustComponent[clientserver.ClientServer](a)
@@ -75,6 +81,9 @@ func (l *localDiscovery) Init(a *app.App) (err error) {
 }
 
 func (l *localDiscovery) Run(ctx context.Context) (err error) {
+	if l.disabled {
+		return nil
+	}
 	if l.manualStart && len(l.nodeConf.Nodes) > 0 {
 		// let's wait for the explicit command to enable local discovery
 		return
@@ -84,6 +93,9 @@ func (l *localDiscovery) Run(ctx context.Context) (err error) {
 }
 
 func (l *localDiscovery) Start() (err error) {
+	if l.disabled {
+		return nil
+	}
 	if !l.drpcServer.ServerStarted() {
 		l.discoveryPossibilitySetState(DiscoveryNoInterfaces)
 		return
