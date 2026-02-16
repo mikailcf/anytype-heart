@@ -11,7 +11,6 @@ import (
 	"github.com/anyproto/any-sync/commonfile/fileservice"
 	"github.com/anyproto/any-sync/commonspace"
 	"github.com/anyproto/any-sync/commonspace/acl/aclclient"
-	anysyncinboxclient "github.com/anyproto/any-sync/coordinator/inboxclient"
 
 	"github.com/anyproto/any-sync/coordinator/nodeconfsource"
 	"github.com/anyproto/any-sync/coordinator/subscribeclient"
@@ -342,7 +341,7 @@ func Bootstrap(a *app.App, components ...app.Component) {
 		Register(pushclient.New()).
 		Register(pushnotification.New()).
 		Register(subscribeclient.New()).
-		Register(anysyncinboxclient.New()).
+		Register(inboxclient.NewStubInboxClient()). // Use stub for offline-only mode
 		Register(inboxclient.New()).
 		Register(onetoone.New()).
 		Register(durability.New()) // leave it the last one
